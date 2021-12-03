@@ -6,48 +6,60 @@
 import sys
 import os, re, random
 from queue import Queue
-import pickle
+import pickle, shutil
+import ctypes
 
 
-# class Technology:
-#     class technology:
-#         ancient = 0x1
-#         oldStone = 0x2
-#         newStone = 0x3
-#         bronze = 0x4
-#
-#     class culture:
-#         nature = 0x1
-#         creed = 0x2
-#         sign = 0x3
-#         profit = 0x4
-#         heresy = 0x5
-#
-#     # religion
-#     class truth:
-#         mercy = 0x1
-#         rite = 0x2
-#         kingdom = 0x3
-#         low = 0x4
-#
-#     class weapon:
-#         none = 0x0
-#
-#     def __init__(self):
-#         pass
+class Cache:
+    Max = 128
+
+    def __init__(self):
+        self.buffer = {}
+        self.queue = Queue(Cache.Max)
+
+    def has(self, id0):
+        return id0 in self.buffer
+
+    def put(self, n0):
+        if n0.id in self.buffer:
+            return
+        self.buffer[n0.id] = n0
+        self.queue.put(n0.id)
+        if self.queue.full():
+            tmp = self.queue.get()
+            del self.buffer[tmp.id]
+            self.save_obj(tmp)
+
+    def get(self, id0):
+        if id0 in self.buffer:
+            return self.buffer[id0]
+        return None
+
+    def clear(self):
+        while not self.queue.empty():
+            tmp = self.queue.get()
+            del self.buffer[tmp.id]
+            self.save_obj(tmp)
+
+    @staticmethod
+    def save_obj(obj):
+        path = obj.filePath + '/__obj__'
+        with open(path, 'wb') as f:
+            f.write(pickle.dumps(obj))
+
+
+CACHE = Cache()
 
 
 # person
 
 
-class Mood:
-    mercy = 0x1
-    envy = 0x11
+class Root:
 
     def __init__(self):
         self.presentBlessing = 0
         self.PresentEvil = 0
-        self.quality = {}
+        self.loyalty = 0
 
 
 class Ability:
@@ -74,7 +86,7 @@ class Relative:
         pass
 
 
-class Person:
+class Person(Root):
     pSoldier = 0x1
     pTrader = 0x2
     pOfficial = 0x3
@@ -87,30 +99,40 @@ class Person:
     RTRust = 0x2
 
     def __init__(self):
+        super(Person, self).__init__()
         self.id = 0
         self.name = 0
         self.age = 0
         self.sex = 0
-        self.mood = Mood()
+
         self.health = 0
         self.hometown = 0
-        self.relatives = Relative()
-        self.friends = set()
-        self.branch = set()
-        self.header = 0
 
-        self.ability = Ability()
-
-        self.profession = 0
-        self.group = set()
-        self.prestige = {}
-        self.collections = []
-        self.properties = set()
+        # self.relatives = Relative()
+        # self.friends = set()
+        # self.branch = set()
+        # self.header = 0
+        #
+        # self.ability = Ability()
+        #
+        # self.profession = 0
+        # self.group = set()
+        # self.prestige = {}
+        # self.collections = []
+        # self.properties = set()
 
         self.resident = 0
 
     def set_header(self, p0):
         pass
+
+
+class Crowd:
+
+    def __init__(self):
+        self.persons = 0
+        self.blessing = 0
+        self.evil = 0
 
 
 # all blow are about person
@@ -404,22 +426,6 @@ class Goods:
         pass
 
 
-class Unit:
-    def __init__(self):
-        self.material = {}
-        self.attack = 0
-        self.attackType = 0
-        self.defense = 0
-        self.defenseType = 0
-        self.mov = 0
-        self.movType = 0
-        self.view = 0
-        self.viewType = 0
-
-    def update_atr(self, material):
-        pass
-
-
 class TopAbc:
     def __init__(self):
         self.data = []
@@ -466,6 +472,56 @@ class GAbc(TopAbc):
             pass
         else:
             pass
+
+
+class Unit:
+    SWeak = 100
+    SNormal = 150
+    SStrong = 200
+    SMaster = 300
+
+    def __init__(self, p0):
+        self.id = 0
+        self.belong = 0
+        self.data = set()
+        self.loc = 0
+
+        self.weapons = {}
+        self.restP = p0
+        self.spirit = Unit.SWeak
+
+        self.persons = set()
+        self.header = 0, 1
+
+    def move(self, loc):
+        regA.move(self.id, self.loc, loc)
+
+    def can_move(self, loc):
+        return True
+
+    def has(self, id_):
+        return id_ in self.data
+
+    def add(self, id_):
+        self.data.add(id_)
+
+    def remove(self, id_):
+        self.data.remove(id_)
+
+    def set_loc(self, loc):
+        self.loc = loc
+
+    def tostring(self, mode=0):
+        """
+
+        :param mode:
+        :return:
+        """
+        info = ''
+        if mode == 0:
+            info = 'id:'+str(self.id)+'\theader:'+regP.get(self.header).name+'\tbelong:'+str(self.belong)+'\n'
+            info += 'loc:'+str(self.loc)
+        return info
 
 
 class BAbc(TopAbc):
@@ -607,7 +663,8 @@ class BCulture(BAbc):
         pass
 
 
-# group
+class Group(GAbc):
+    pass
 
 
 class GOfficial(GAbc):
@@ -655,9 +712,9 @@ class GClan(GAbc):
 
 class Block:
     def __init__(self):
-        self.id = 0
-        self.name = 0
-        self.belong = 0
+        self.id = 0, 0
+        self.name = '海口'
+        self.belong = 0, 0
         self.geo = Geo()
         self.resource = Resource()
         self.weather = Weather()
@@ -670,195 +727,674 @@ class Block:
         self.gTrader = GTrader()
         self.gPolice = GPolice()
         self.gGang = GGang()
-        self.gTroop = GTroop()
         self.gClan = GClan()
+        self.gTroop = GTroop()
 
     def update(self):
         pass
 
     def trading(self):
         pass
+
+    def tostring(self, mode=0):
+        """
+
+        :param mode:
+        :return:
+        """
+        info = ''
+        if mode == 0:
+            info = 'id:'+str(self.id)+'\tname:'+self.name+'\tbelong:'+str(self.belong)+'\n'
+        return info
     # def __del__(self):
     #     print("it's del")
 
 
-class Statistic:
-    pass
+class Region:
+    def __init__(self, filepath=0):
+        self.id = 0, 0
+        self.belong = 0, 0
+        self.rId = 0
+        self.name = 'haikou'
+        self.data = set()
+        # self.data = []
+        # self.filePath = filepath
+
+    def add(self, obj):
+        if len(self.data) > 128:
+            return False
+        self.data.add(obj.id)
+        self.data.belong = self.id
+        return True
+
+    def remove(self, id0):
+        # if id0 in self.data:
+        #     self.data.remove(id0)
+        #     path = self.filePath+'/'+str(id0)
+        #     if len(os.listdir(path)) > 1:
+        #         f = self.get(id0)
+        #         for i_1 in f.data:
+        #             f.get(i_1).belong = self.id
+        #             if f.id[1] == -1:
+        #                 continue
+        #             f.filePath = self.filePath + '/' + str(f.id)
+        #             Region.open_room(f.filePath)
+        #             Region.save_obj(f)
+        #     shutil.rmtree(self.filePath+'/'+str(id0))
+        #
+        #     if id0 in self.buffer:
+        #         del self.buffer[id0]
+        #         self.buffer_set.remove(id0)
+        #         self.buffer_queue.queue.clear()
+        self.data.remove(id0)
+
+    def has(self, id0):
+        return id0 in self.data
+
+    def list(self):
+        return list(self.data)
+
+    def tostring(self, mode=0):
+        """
+
+        :param mode:
+        :return:
+        """
+        info = ''
+        if mode == 0:
+            info = 'id:' + str(self.id) + '\tname:' + self.name + '\tbelong:' + str(self.belong) + '\n'
+        return info
+
+    # def get(self, cur):
+    #     if CACHE.has(cur):
+    #         return CACHE.get(cur)
+    #     elif cur[1] == -1:
+    #         if not rgdBlock.has(cur[0]):
+    #             return None
+    #         return rgdBlock.get(cur=cur[0])
+    #     else:
+    #         path = self.filePath+'/'+str(cur)
+    #         tmp = Region.load_obj(path)
+    #
+    #         CACHE.put(tmp)
+    #
+    #         return tmp
+
+    # def modify_path(self, path):
+    #     self.filePath = path
+    #     for i_1 in self.data:
+    #         if i_1[1] == -1:
+    #             continue
+    #         tmp = self.get(i_1)
+    #         tmp.modify_path(path+'/'+str(tmp.id))
+
+    # def add(self, cur, name, data=[]):
+        # if cur[1] == -1:
+        #     obj = rgdBlock.get(cur=cur[0])
+        # else:
+        #     path = self.filePath+'/'+str(cur)
+        #     Region.open_room(path)
+        #     obj = Region.load_obj(path)
+        #     for i_1 in data:
+        #         if self.has(i_1):
+        #             self.get(i_1).belong = cur
+        #             if i_1[1] != -1:
+        #                 shutil.move(self.get(i_1).filePath, path+'/')
+        #
+        # obj.id = cur
+        # obj.name = name
+        # obj.belong = self.id
+        #
+        # self.data.add(cur)
+        #
+        # if cur[1] != -1:
+        #     Region.save_obj(obj)
+        #
+        # CACHE.save_obj(self)
+
+    # @staticmethod
+    # def open_room(filepath):
+    #     if os.path.exists(filepath):
+    #         for f in os.listdir(filepath):
+    #             try:
+    #                 shutil.rmtree(filepath+'/'+f)
+    #             except NotADirectoryError:
+    #                 os.remove(filepath+'/'+f)
+    #     else:
+    #         os.mkdir(filepath)
+    #
+    # @staticmethod
+    # def load_obj(filepath):
+    #     '''
+    #
+    #     :param filepath:
+    #     :return: Region
+    #     '''
+    #     path = filepath+'/__obj__'
+    #     if os.path.exists(path):
+    #         with open(path, 'rb') as f:
+    #             return pickle.load(f)
+    #     else:
+    #         tmp = Region(filepath)
+    #
+    #         with open(path, 'wb') as f:
+    #             f.write(pickle.dumps(tmp))
+    #
+    #         tmp.filePath = filepath
+    #         return tmp
 
 
-class County(Statistic):
-    def __init__(self):
-        super(County, self).__init__()
-        self.belong = 0
-        self.blocks = []
-        # self.geo = {}
-        # self.weather = Weather()
-        # self.resource = Resource()
-
-
-class Region(Statistic):
-    def __init__(self):
-        super(Region, self).__init__()
-        self.belong = 0
-        self.counties = []
-        # self.resource = Resource()
-
-
-class Province(Statistic):
-    def __init__(self):
-        super(Province, self).__init__()
-        self.belong = 0
-        self.regions = []
-        # self.resource = Resource()
-
-
-class Force(Statistic):
-    def __init__(self):
-        super(Force, self).__init__()
+class Force(Region):
+    def __init__(self, filepath):
+        super(Force, self).__init__(filepath)
+        self.regionRank = {
+            0: '',
+            1: '',
+            2: '',
+            3: '',
+            4: '',
+            5: '',
+            6: '',
+            7: '',
+        }
         self.lows = set()
         self.header = 0
 
+        self.master = 0
+        self.minion = 0
+        # self.RM = RegManager()
 
-class Regedit:
-    def __init__(self):
-        self.data = []
 
-    def add(self, n):
-        for cur, da in enumerate(self.data):
-            if da == None:
-                self.data[cur] = n
-                return cur
+class TopRegion(Region):
+    def __init__(self, filepath):
+        super(TopRegion, self).__init__(filepath)
+
+
+class RegeditNu:
+    rankB = 0x0
+    rank1 = 0x1
+    rank2 = 0x2
+    rank3 = 0x3
+    rank4 = 0x4
+    rank5 = 0x5
+    rank6 = 0x6
+    rank7 = 0x7
+    rank8 = 0x8
+    rank9 = 0x9
+
+    unit = 0xa
+    building = 0xb
+    group = 0xc
+    person = 0xd
+
+    def __init__(self, filename):
+        self.restNu = {}
+        self.nowNu = {}
+        for i in range(1, 0xe):
+            self.restNu[i] = set()
+            self.nowNu[i] = 0
+
+        self.restNu[-1] = set()
+        self.nowNu[-1] = 0
+        self.fileName = filename
+
+    def get(self, type_):
+        if len(self.restNu[type_]):
+            return self.restNu[type_].pop()
         else:
-            self.data.append(n)
-            return len(self.data) - 1
+            self.nowNu[type_] += 1
+            return self.nowNu[type_]
 
-    def pop(self, cur):
-        self.data.pop(cur)
-
-    def remove(self, n):
-        self.data.remove(n)
-
-    def get(self, cur):
-        try:
-            rlt = self.data[cur]
-            return rlt
-        except IndexError:
-            return None
+    # 暂不考虑溢出处理
+    def rec(self, type_, nu):
+        self.restNu[type_].add(nu)
+        # if len(self.restNu[type_]) > 128:
 
     @staticmethod
-    def get_name(**kwargs):
-        pass
+    def load_obj(filepath):
+        path = filepath+'/__obj__'
+        if os.path.exists(filepath):
+            if os.path.exists(path):
+                with open(path, 'rb') as f:
+                    return pickle.load(f)
+            else:
+                for i_1 in os.listdir(filepath):
+                    shutil.rmtree(i_1)
+
+                tmp = RegeditNu(filepath)
+                with open(path, 'wb') as f:
+                    f.write(pickle.dumps(tmp))
+                return tmp
+        else:
+            os.mkdir(filepath)
+            tmp = RegeditNu(filepath)
+            with open(path, 'wb') as f:
+                f.write(pickle.dumps(tmp))
+            return tmp
+
+    @staticmethod
+    def save_obj(obj):
+        with open(obj.filePath+'/__obj__', 'wb') as f:
+            f.write(pickle.dumps(obj))
 
 
-'''暂不考虑list长度问题'''
+rgdNu = RegeditNu.load_obj('run/regeditNu')
 
 
-class RegeditBlock:
-    def __init__(self, size: tuple):
-        self.buffer = {}
-        self.max_buffer = 64
-        self.buffer_set = set()
-        self.buffer_queue = Queue(self.max_buffer)
-
-        self.height = self.width = 3
-        self.resize(size[0], size[1])
+class Regedit(Cache):
+    def __init__(self, filepath):
+        super(Regedit, self).__init__()
+        self.filePath = filepath
+        self.top = 0
+        self.removed = 0
+        self.remove_point = 0
 
     def resize(self, rows, cols):
-        for i in os.listdir('run'):
-            os.remove('run/'+i)
-        new_length = rows * cols
-        for i in range(new_length):
-            with open('run/'+str(i), 'wb') as f:
-                f.write(pickle.dumps(Block()))
-        self.height, self.width = rows, cols
+        if os.path.exists(self.filePath):
+            shutil.rmtree(self.filePath)
+        os.mkdir(self.filePath)
 
-    def get(self, y=0, x=0, cur=-1) -> Block:
-        # print(len(self.buffer_set))
-        if cur == -1:
-            cur = y * self.width + x
-        if cur >= self.width * self.height:
-            raise IndexError
-        elif cur in self.buffer_set:
+    def get(self, cur):
+        if cur in self.buffer:
             return self.buffer[cur]
+        elif not self.has(cur):
+            return
         else:
-            with open('run/'+str(cur), 'rb') as f:
+            with open(self.filePath+'/'+str(cur), 'rb') as f:
                 tmp = pickle.load(f)
 
-            self.buffer[cur] = tmp
-            self.buffer_set.add(cur)
-            self.buffer_queue.put(cur)
-
-            if self.buffer_queue.full():
-                cur = self.buffer_queue.get()
-                self.buffer_set.remove(cur)
-                self.push_disk(cur)
-                del self.buffer[cur]
+            self.put(tmp)
 
             return tmp
 
-    def push_disk(self, cur):
-        # print(cur, self.buffer[cur].geo.altitude, 'push')
-        with open('run/'+str(cur), 'wb') as f:
-            f.write(pickle.dumps(self.buffer[cur]))
+    def add(self, belong, name, type_):
+        id_ = rgdNu.get(type_)
+        obj = Region()
+        obj.belong = belong
+        obj.id = id_, type_
+        obj.name = name
+        path = self.filePath+'/'+str(obj.id)
+        with open(path, 'wb') as f:
+            f.write(pickle.dumps(obj))
+        return obj
+
+    def remove(self, ids):
+        """
+
+        :param ids: list
+        :return:
+        """
+        for cur in ids:
+            if self.has(cur):
+                os.remove(self.filePath+'/'+str(cur))
+                self.removed += 1
+                rgdNu.rec(cur[1], cur[0])
+
+        self.clear()
+        self.remove_point = 0
+
+    def has(self, cur):
+        return os.path.exists(self.filePath+'/'+str(cur))
+
+    def get_nu(self):
+        if not self.removed:
+            self.top += 1
+            return self.top - 1
+        else:
+            for i in range(self.remove_point, self.top):
+                if self.has(i):
+                    self.removed -= 1
+                    self.remove_point = i + 1
+                    return i
+
+    @classmethod
+    def load_obj(cls, filepath):
+        path = filepath + '/__obj__'
+        if os.path.exists(filepath):
+            if os.path.exists(path):
+                with open(path, 'rb') as f:
+                    tmp = pickle.load(f)
+            else:
+                for i_1 in os.listdir(filepath):
+                    os.remove(filepath+'/'+i_1)
+                    # shutil.rmtree(i_1)
+
+                tmp = cls(filepath)
+                del tmp.queue
+
+                with open(path, 'wb') as f:
+                    f.write(pickle.dumps(tmp))
+                # if os.path.exists(filepath+'/__removed__'):
+                #     shutil.rmtree(filepath+'/__removed__')
+                # os.mkdir(filepath+'/__removed__')
+
+        else:
+            os.mkdir(filepath)
+            tmp = cls(filepath)
+            del tmp.queue
+
+            with open(path, 'wb') as f:
+                f.write(pickle.dumps(tmp))
+            # if os.path.exists(filepath+'/__removed__'):
+            #     shutil.rmtree(filepath+'/__removed__')
+            # os.mkdir(filepath+'/__removed__')
+
+        tmp.queue = Queue(Cache.Max)
+        return tmp
+
+    @staticmethod
+    def save_obj(obj):
+        path = obj.filePath + '/' + str(obj.id)
+
+        with open(path, 'wb') as f:
+            f.write(pickle.dumps(obj))
 
 
-# class RegeditBlock:
-#     def __init__(self, size: tuple):
-#         self.__width__ = 10000
-#         self.data = []
-#         self.height = self.width = 0
-#         self.resize(size[0], size[1])
-#
-#     def resize(self, rows, cols):
-#         new_length = rows * cols
-#         now_length = len(self.data)
-#         if now_length >= new_length:
-#             # !!! may appear some errors !!!
-#             self.data = self.data[0:new_length]
-#         else:
-#             for i in range(now_length, new_length):
-#                 self.data.append(Block(i))
-#         self.height, self.width = rows, cols
-#
-#     def get(self, y=0, x=0, cur=-1) -> Block:
-#         if cur == -1:
-#             cur = y * self.width + x
-#         return self.data[cur]
-#
-#     def set(self, y, x, n, cur=-1):
-#         if cur == -1:
-#             cur = y * self.width + x
-#         self.data[cur] = n
+class RgdBlock(Regedit):
+    def __init__(self, size: tuple):
+        super(RgdBlock, self).__init__('run/region0')
+
+        self.height, self.width = size
+        self.resize(size[0], size[1])
+
+    def resize(self, rows, cols):
+        super(RgdBlock, self).resize(rows, cols)
+        new_length = rows * cols
+        for i in range(new_length):
+            with open(self.filePath+'/'+str((i, RegeditNu.rankB)), 'wb') as f:
+                tmp = Block()
+                tmp.id = i, RegeditNu.rankB
+                tmp.belong = 1, 9
+                f.write(pickle.dumps(tmp))
+        self.height, self.width = rows, cols
+
+    def get(self, cur=-1, **kwargs) -> Block:
+        # print(len(self.buffer_set))
+        if cur == -1:
+            cur = kwargs['y'] * self.width + kwargs['x'], RegeditNu.rankB
+        if cur[0] >= self.width * self.height:
+            raise IndexError
+        return super(RgdBlock, self).get(cur)
+
+    def has(self, cur):
+        return super(RgdBlock, self).has(cur)
 
 
-class RegeditBuilding(Regedit):
+class RegManager:
     def __init__(self):
-        super(RegeditBuilding, self).__init__()
+        self.regeditS = {}
+        for i in range(0, 10):
+            path = 'run/region'+str(i) + '/__obj__'
+            if os.path.exists(path):
+                with open(path, 'rb') as f:
+                    self.regeditS[i] = pickle.load(f)
+                    self.regeditS[i].queue = Queue(Cache.Max)
+                    if self.regeditS[i].buffer:
+                        print(self.regeditS[i])
+                        raise OSError
+            else:
+                print('error path:', path)
+                raise OSError
+
+    def domain(self, rows, cols):
+        # top region
+        print(self.create((1, 10), RegeditNu.rank9, 'top', []))
+        if rows * cols <= 128:
+            return
+        # county
+        r = 0
+        while r < rows:
+            row1, row2 = r, random.randint(4, 9) + r
+            if row2 >= rows:
+                row2 = rows - 1
+            r = row2 + 1
+
+            c = 0
+            while c < cols:
+                col1, col2 = c, random.randint(4, 9) + c
+                if col2 >= cols:
+                    col2 = cols - 1
+                c = col2 + 1
+
+                data = []
+                for i in range(row1, row2+1):
+                    for j in range(col1, col2+1):
+                        data.append((i * rows + j, RegeditNu.rankB))
+
+                self.create((1, 9), RegeditNu.rank1, 'county', data)
+
+        if rows * cols <= 10000:
+            return
+
+        # status
+        r = 0
+        while r < rows:
+            row1, row2 = r, random.randint(50, 99) + r
+            if row2 >= rows:
+                row2 = rows - 1
+            r = row2 + 1
+
+            c = 0
+            while c < cols:
+                col1, col2 = c, random.randint(50, 99) + c
+                if col2 >= cols:
+                    col2 = cols - 1
+                c = col2 + 1
+
+                data = []
+
+                for i in range(row1, row2+1):
+                    id1 = self.regeditS[0].get(i, col1).belong[0]
+                    id2 = self.regeditS[0].get(i, col2).belong[0]
+                    for j in range(id1, id2+1):
+                        data.append((RegeditNu.rank1, j))
+
+                self.create((1, 9), RegeditNu.rank2, 'county', data)
+
+        if rows * cols <= 1000000:
+            return
+        # province
+        r = 0
+        while r < rows:
+            row1, row2 = r, random.randint(500, 999) + r
+            if row2 >= rows:
+                row2 = rows - 1
+            r = row2 + 1
+
+            c = 0
+            while c < cols:
+                col1, col2 = c, random.randint(500, 999) + c
+                if col2 >= cols:
+                    col2 = cols - 1
+                c = col2 + 1
+
+                data = []
+
+                for i in range(row1, row2 + 1):
+                    id1 = self.regeditS[0].get(i, col1).belong[0]
+                    id2 = self.regeditS[0].get(i, col2).belong[0]
+                    id1 = self.get(id1[0], id1[1]).belong[0]
+                    id2 = self.get(id2[0], id2[1]).belong[0]
+                    for j in range(id1, id2 + 1):
+                        data.append((RegeditNu.rank1, j))
+
+                self.create((1, 9), RegeditNu.rank3, 'county', data)
+
+        if rows * cols // 10000 <= 10000:
+            print('生命所不能承受的范围')
+            raise OSError
+
+    @staticmethod
+    def resize(rows, cols):
+        for i in range(0, 10):
+            path = 'run/region'+str(i)
+            if os.path.exists(path):
+                shutil.rmtree(path)
+            os.mkdir(path)
+
+        regedit = {
+            0: RgdBlock((rows, cols)),
+        }
+        for i in range(1, 10):
+            regedit[i] = Regedit('run/region'+str(i))
+
+        for i in range(0, 10):
+            path = 'run/region'+str(i)
+            del regedit[i].queue
+            with open(path+'/__obj__', 'wb') as f:
+                f.write(pickle.dumps(regedit[i]))
+
+    def has(self, cur, type_):
+        return self.regeditS[type_].has((cur, type_))
+
+    def search(self, cur):
+        end = []
+        for i_1 in range(8, 0, -1):
+            if self.has(cur, i_1):
+                end.append((cur, i_1))
+        return end
+
+    def get(self, cur, type_) -> Region:
+        return self.regeditS[type_].get((cur, type_))
+
+    def create(self, belong, type_, name, data):
+        """
+        :param belong:
+        :param type_: belong[1] > type_ > 0
+        :param name:
+        :param data: will not be checked
+        :return:
+        """
+        if 0 < type_ < belong[1]:
+            obj = self.regeditS[type_].add(belong, name, type_)
+            for i in data:
+                obj.add(self.get(i[0], i[1]))
+
+            return True
+
+        return False
+
+    def remove(self, ids):
+        rlt = {}
+        for cur in ids:
+            obj1 = self.get(cur[0], cur[1])
+            obj2 = self.get(obj1.belong[0], obj1.belong[1])
+            for i in obj1.data:
+                obj2.add(self.get(i[0], i[1]))
+            if cur[1] in rlt:
+                rlt[cur[1]].add(cur)
+            else:
+                rlt[cur[1]] = set()
+                rlt[cur[1]].add(cur)
+
+        for k, v in rlt.items():
+            self.regeditS[k].remove(v)
+
+    def list(self, cur, mode=0):
+        """
+
+        :param cur: 0 < cur[1] < 9
+        :param mode:1:name;2:nu;0:name+nu
+        :return:
+        """
+        rlt = []
+        if cur[1] <=0 or cur [1] >=9:
+            print('path error')
+            return []
+        obj1 = self.get(cur[0], cur[1])
+        if not obj1:
+            print('has no such path')
+            return
+        for i in obj1.data:
+            obj2 = self.get(i[0], i[1])
+            if mode == 1:
+                tmp = obj2.name
+            else:
+                tmp = chr(ord('a') + obj2.id[1]) + str(obj2.id[0])
+                if mode == 3:
+                    tmp = obj2.name + tmp
+            rlt.append(tmp)
+
+        return rlt
+
+    def belong_to(self, cur, type_, obj=None):
+        if not obj:
+            obj = self.get(cur, type_)
+        id_ = obj.id
+        while id_[1] < RegeditNu.rank8:
+            id_ = self.get(id_[0], id_[1]).belong
+
+        return id_
 
 
-class RegeditGroup(Regedit):
+class RegArmy(Regedit):
+    def add(self, belong, name, type_):
+        return
+
+    def create(self, p0, loc, belong=(RegeditNu.rank9, 0)):
+        """
+
+        :param p0:
+        :param loc: should have spare space
+        :param belong:
+        :return:
+        """
+        obj = Unit(p0)
+        obj.belong = belong
+        obj.id = rgdNu.get(RegeditNu.unit), RegeditNu.unit
+        path = self.filePath + '/' + str(obj.id)
+        with open(path, 'wb') as f:
+            f.write(pickle.dumps(obj))
+        if belong != (RegeditNu.rank9, 0):
+            obj2 = self.get(belong)
+            obj2.add(obj)
+
+        regM.get(loc, RegeditNu.rankB).gTroop.add(obj.id)
+
+        return obj
+
+    def move(self, id_, o_loc, n_loc):
+        regM.get(o_loc, RegeditNu.rankB).gTroop.add(id_)
+        regM.get(n_loc, RegeditNu.rankB).gTroop.remove(id_)
+        self.get(id_).set_loc(n_loc)
+
+    def remove(self, ids):
+        for id_ in ids:
+            loc = self.get(id_)
+            regM.get(loc.loc, RegeditNu.rankB).gTroop.remove(id_)
+            self.get(loc.belong).remove(id_)
+        super(RegArmy, self).remove(ids)
+
+    def chg_belong(self, id_, belong):
+        obj = self.get(id_)
+        obj.belong = belong
+        self.get(obj.belong).remove(id_)
+        self.get(belong).add(id_)
+
+
+# RegManager.resize(10, 10)
+regM = RegManager()
+regM.domain(10, 10)
+regG = Regedit.load_obj('run/groups')
+regB = Regedit.load_obj('run/buildings')
+regP = Regedit.load_obj('run/persons')
+regA = RegArmy.load_obj('run/armies')
+
+# class RegeditForce(Regedit):
+#     def __init__(self):
+#         super(RegeditForce, self).__init__('run/forces/')
+
+
+class RgdBuilding(Regedit):
     pass
 
 
-class RegeditHuman(Regedit):
+class RgdGroup(Regedit):
     pass
 
 
-class RegeditTrader(Regedit):
+class RgdPerson(Regedit):
     pass
-
-
-class RegeditGang(Regedit):
-    pass
-
-
-class RegeditPolice(Regedit):
-    pass
-
-
-class RegeditForce(Regedit):
-    def __init__(self):
-        super(RegeditForce, self).__init__()
 
 
 class DeviceWeather:
@@ -871,7 +1407,7 @@ class DeviceAnimal:
 
 class GameCore:
     def __init__(self):
-        self.blocks = RegeditBlock((10, 10))
+        self.blocks = RgdBlock((10, 10))
 
 
 class MapBuilder:
@@ -1152,7 +1688,7 @@ class MapBuilder:
 
 class MapInit:
     def __init__(self, size, date=None, dimension: tuple=None):
-        map_ = RegeditBlock(size)
+        map_ = RgdBlock(size)
         self.dimension(map_, (-89, 89))
         # self.altitude0slope(map_)
         # self.landform(map_)
@@ -1162,7 +1698,7 @@ class MapInit:
         # self.print(map_, lambda a: a.geo.)
 
     @staticmethod
-    def land0quality(map_: RegeditBlock):
+    def land0quality(map_: RgdBlock):
         vt = len(Geo.LQs) - 1
         for i in range(map_.width*map_.height):
             for j in Geo.LQs:
@@ -1170,7 +1706,7 @@ class MapInit:
             map_.get(cur=i).geo.lq[random.randint(0, vt)] = 100
 
     @staticmethod
-    def altitude0slope(map_: RegeditBlock, sea=250, shadow=300, plain=700, mountain=950, plateau=1000):
+    def altitude0slope(map_: RgdBlock, sea=250, shadow=300, plain=700, mountain=950, plateau=1000):
         # sea=250, shadow=50, plain=400, mountain=250, plateau=50
         # mark = MapBuilder.make_mpa_altitude((map_.height, map_.width))
         for i in range(map_.height):
@@ -1227,7 +1763,7 @@ class MapInit:
                         map_.get(i, j).geo.slope = Geo.LSMountain
 
     @staticmethod
-    def landform(map_: RegeditBlock, river=100, lake=200, wetland=250, volcano=300):
+    def landform(map_: RgdBlock, river=100, lake=200, wetland=250, volcano=300):
         directions = [(0, 1), (0, -1), (1, 0), (-1, 0)]
 
         fill_map = MapBuilder.fill_map(MapInit.to_bit(map_, compare=lambda a: a.geo.altitude >= 0), True)
@@ -1409,7 +1945,7 @@ class MapInit:
         ''''''
 
     @staticmethod
-    def dimension(map_: RegeditBlock, dimension=(0, 0)):
+    def dimension(map_: RgdBlock, dimension=(0, 0)):
         # wind, sun, steam,
         # 30, 60, 90
         reference = [-90, -60, -30, 30, 60, 90]
@@ -1471,7 +2007,7 @@ class MapInit:
         # print(sections)
 
     @staticmethod
-    def resource0weather(map_: RegeditBlock, ore=200, gas=200):
+    def resource0weather(map_: RgdBlock, ore=200, gas=200):
         for i in range(map_.width * map_.height):
             cur1 = random.randint(1, 1000)
             if cur1 > ore:
@@ -1487,7 +2023,7 @@ class MapInit:
             map_.get(cur=i).resource.gas = cur1
 
     @staticmethod
-    def people(map_: RegeditBlock, low=50, mid=500, high=200, top=250):
+    def people(map_: RgdBlock, low=50, mid=500, high=200, top=250):
         #
         pass
 
@@ -1496,7 +2032,7 @@ class MapInit:
         pass
 
     @staticmethod
-    def to_bit(pre_map: RegeditBlock, compare=None):
+    def to_bit(pre_map: RgdBlock, compare=None):
         if not compare:
             pass
         map_ = []
@@ -1508,13 +2044,35 @@ class MapInit:
         return map_
 
     @staticmethod
-    def print(map_: RegeditBlock, func):
+    def print(map_: RgdBlock, func):
         if not func:
             func = lambda a: a
         for i in range(map_.height):
             for j in range(map_.width):
                 print('%-6s' % str(func(map_.get(i, j))), end='')
             print()
+
+    @staticmethod
+    def simple_army(map_: RgdBlock):
+        # for i in range(25):
+        #     tRegion.add((i, -1), 'test')
+        # Region.save_obj(tRegion)
+        # data = []
+        # for i in range(0, 13):
+        #     data.append((i, -1))
+        # tRegion.add((1, 8), 'test', data)
+        # data.clear()
+        # for i in range(13, 25):
+        #     data.append((i, -1))
+        # tRegion.add((2, 8), 'testtt', data)
+        pass
+
+
+# MapInit.simple_army(rgdBlock)
+
+
+class Console:
+    pass
 
 
 class AI:
@@ -1524,6 +2082,12 @@ class AI:
 class Role:
     def __init__(self, nickname, job):
         self.nickname = nickname
+        self.force = 1
+        self.job = job
+        self.__workspace = 'j0'
+        # self.__hand_path('../../123')
+        # print(self.__hand_path('../'))
+        # print(tRegion.data)
         pass
 
     def run(self):
@@ -1531,6 +2095,8 @@ class Role:
         while 1:
             input_ = input("["+self.nickname+"]# ")
             input_ = re.sub(' +', ' ', input_)
+            if input_[-1] == ' ':
+                input_ = input_[:-1]
             cmc = input_.split(' ')
             if cmc[0] == 'exit':
                 if not saved and '-f' not in cmc:
@@ -1551,6 +2117,104 @@ class Role:
     def speed(self):
         pass
 
+    def loc(self, l0):
+        if not l0:
+            print(self.__workspace)
+        else:
+            try:
+                if l0[0][-1] == '/':
+                    cur = ord(l0[0][0]) - ord('a'), int(l0[0][1:-1])
+                else:
+                    cur = ord(l0[0][0]) - ord('a'), int(l0[0][1:])
+            except ValueError:
+                print('error format for path')
+                return
+            cur = cur[1], cur[0]
+            if regM.has(cur[0], cur[1]):
+                if l0[0][-1] == '/':
+                    print(regM.list(cur))
+                else:
+                    self.__workspace = chr(ord('a')+cur[0]) + str(cur[1])
+                return True
+            else:
+                print('has no such region')
+
+    def view(self, l0):
+        if l0[0]:
+            try:
+                cur = int(l0[0][1:]), ord(l0[0][0]) - ord('a')
+            except ValueError:
+                print('error format for path')
+                return
+            if regM.has(cur[0], cur[1]):
+                obj = regM.get(cur[0], cur[1])
+                print(obj.tostring())
+
+    # def loc(self, l0):
+    #     if not l0:
+    #         print(self.__workspace)
+    #         return
+    #     path = self.__hand_path(l0[0])
+    #     if not path:
+    #         print('error3grr')
+    #         return
+    #     if path[0][-1] == '/':
+    #         if len(path[1].data) < 128:
+    #             end_data = list(path[1].data)
+    #         else:
+    #             mark = 128
+    #             end_data = []
+    #             for i in path[1].data:
+    #                 end_data.append(i)
+    #                 mark -= 1
+    #                 if mark == 0:
+    #                     break
+    #         # rlt = []
+    #         # for i in end_data:
+    #         #
+    #
+    #     else:
+    #         self.__workspace = path[0]
+
+    # def __hand_path(self, s0):
+    #     if s0 == '/':
+    #         return '/', tRegion
+    #     if s0[0] == '/':
+    #         full_path = s0
+    #     elif s0[0:2] == './':
+    #         full_path = self.__workspace + s0[1:]
+    #     elif s0[0:3] == '../':
+    #         can_back = self.__workspace.count('/')
+    #         if self.__workspace == '/':
+    #             can_back = 0
+    #         should_back = str(re.search('^(../)+', s0)).count('../')
+    #         if should_back >= can_back:
+    #             full_path = s0[should_back*3-1:]
+    #         else:
+    #             p_s_1 = self.__workspace.split('/')
+    #             full_path = '/'.join(p_s_1[0:can_back-should_back+1]) + s0[should_back*3-1:]
+    #     else:
+    #         full_path = self.__workspace + '/' + s0
+    #
+    #     if full_path[1] == '/':
+    #         full_path = full_path[1:]
+    #
+    #     # legal
+    #
+    #     p_s_1 = full_path.split('/')[1:]
+    #     f = tRegion
+    #     for i_1 in p_s_1:
+    #         try:
+    #             id0 = (int(i_1[1:]), ord(i_1[0])-ord('a'))
+    #         except ValueError:
+    #             return False
+    #         if f.has(id0):
+    #             f = f.get(id0)
+    #         else:
+    #             return False
+    #
+    #     return full_path, f
+
 
 class RoleOfficial(Role):
     def search(self):
@@ -1560,14 +2224,40 @@ class RoleOfficial(Role):
         pass
 
 
+class RoleCommander(Role):
+    def __init__(self, nickname, job):
+        super(RoleCommander, self).__init__(nickname, job)
+
+    def army(self, l0):
+        if len(l0) == 0:
+            print('')
+            return
+        if l0[0] == 'v':
+            pass
+
+    def __view_army(self):
+        pass
+
+    def mov(self, l0):
+        pass
+
+
+'''
+    view,  army, /force/province/status/block
+    loc /force/province/status/block
+'''
+
+
 if __name__ == "__main__":
     import time
     start_time = time.time()
+    # print(regM.regeditS[RegeditNu.rank9].data)
+    # exit()
+    print(regM.has(0, RegeditNu.rankB), 'fdfdf')
+    # RoleCommander('1', 2).run()
+    exTmp = RoleCommander('bear', 8)
+    exTmp.run()
 
-    exMap = MapInit((9, 9))
     print(time.time() - start_time)
     pass
-
-
-
 
